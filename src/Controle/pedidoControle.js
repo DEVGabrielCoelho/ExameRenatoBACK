@@ -1,120 +1,128 @@
-export const visualizarPedido = async (req, res) => {
-  try {
-    const { id } = req.params;
+import CreatePoolConnection from "../config/connection.js";
+import sql from "mssql";
 
-    const [pedidoResults] = await pool.query(
-      "SELECT * FROM pedidos WHERE id = ?",
-      [id]
+export const visualizarPedidos = async (req, res) => {
+  try {
+    const pedidos = [];
+    const connection = await CreatePoolConnection();
+    const pedidosResults = await connection.query(
+      "SELECT p.id, c.nome as nome FROM pedidos p INNER JOIN clientes c ON c.id = p.clienteId"
     );
 
-    if (pedidoResults.length === 0) {
-      return res.status(404).json({ error: "Pedido não encontrado" });
+    for (const pedido of pedidosResults.recordset) {
+      const pedidoComItens = {
+        id: pedido.id,
+        clienteId: pedido.nome,
+        itensDoPedido: [],
+      };
+
+      console.log("Valor de pedido.id:", pedido.id);
+
+      const query =
+        "SELECT pedidoId, produto, quantidade, precoUnitario FROM itens_pedido WHERE pedidoId = @pedidoId";
+      const request = connection.request();
+      request.input("pedidoId", sql.Int, pedido.id);
+
+      const itensResults = await request.query(query);
+
+      for (const item of itensResults.recordset) {
+        const itemDoPedido = {
+          pedidoId: item.pedidoId,
+          produto: item.produto,
+          quantidade: item.quantidade,
+          precoUnitario: item.precoUnitario,
+        };
+
+        pedidoComItens.itensDoPedido.push(itemDoPedido);
+      }
+
+      pedidos.push(pedidoComItens);
     }
 
-    const pedido = pedidoResults[0];
-
-    const [itensResults] = await pool.query(
-      "SELECT * FROM itens_pedido WHERE pedidoId = ?",
-      [id]
-    );
-
-    const pedidoComItens = {
-      id: pedido.id,
-      dataHora: pedido.dataHora,
-      clienteId: pedido.clienteId,
-      status: pedido.status,
-      total: pedido.total,
-      itensDoPedido: itensResults,
-    };
-
-    res.json(pedidoComItens);
+    res.json(pedidos);
   } catch (error) {
-    console.error("Erro ao visualizar o pedido:", error);
-    res.status(500).json({ error: "Erro ao visualizar o pedido" });
+    console.error("Erro ao visualizar os pedidos:", error);
+    res.status(500).json({ error: "Erro ao visualizar os pedidos" });
   }
 };
 
-export const atualizarPedido = async (req, res) => {
+export const cadastrarPedido = async (req, res) => {
   try {
-    const { id } = req.params;
-    const { dataHora, clienteId, status, total } = req.body;
+    const { clienteId, itens } = req.body;
 
-    if (!dataHora || !clienteId || !status || !total) {
-      return res
-        .status(400)
-        .json({ error: "Todos os campos são obrigatórios" });
+    if (!clienteId || !itens || !itens.length) {
+      return res.status(400).json({
+        error:
+          "As informações de clienteId e ao menos um item são obrigatórias",
+      });
     }
 
-    await pool.query(
-      "UPDATE pedidos SET dataHora = ?, clienteId = ?, status = ?, total = ? WHERE id = ?",
-      [dataHora, clienteId, status, total, id]
+    const connection = await CreatePoolConnection();
+    const transaction = new sql.Transaction(connection);
+
+    await transaction.begin();
+
+    const pedidoRequest = new sql.Request(transaction);
+    pedidoRequest.input("clienteId", sql.Int, clienteId);
+
+    const pedidoInsertResult = await pedidoRequest.query(
+      "INSERT INTO pedidos (clienteId) OUTPUT INSERTED.id VALUES (@clienteId)"
     );
 
-    res.json({ message: "Pedido atualizado com sucesso" });
+    const pedidoId = pedidoInsertResult.recordset[0].id;
+
+    await transaction.commit();
+
+    const itensTransaction = new sql.Transaction(connection);
+    await itensTransaction.begin();
+
+    for (const item of itens) {
+      const itensPedidoRequest = new sql.Request(itensTransaction); // Crie uma nova solicitação para cada item
+      const { produto, quantidade, precoUnitario } = item;
+      itensPedidoRequest.input("pedidoId", sql.Int, pedidoId);
+      itensPedidoRequest.input("produto", sql.VarChar, produto);
+      itensPedidoRequest.input("quantidade", sql.Int, quantidade);
+      itensPedidoRequest.input("precoUnitario", sql.VarChar, precoUnitario);
+
+      await itensPedidoRequest.query(
+        "INSERT INTO itens_pedido (pedidoId, produto, quantidade, precoUnitario) VALUES (@pedidoId, @produto, @quantidade, @precoUnitario)"
+      );
+    }
+
+    await itensTransaction.commit();
+
+    res.json({ message: "Pedido e itens cadastrados com sucesso" });
   } catch (error) {
-    console.error("Erro ao atualizar o pedido:", error);
-    res.status(500).json({ error: "Erro ao atualizar o pedido" });
+    console.error("Erro ao cadastrar o pedido e itens:", error);
+    res.status(500).json({ error: "Erro ao cadastrar o pedido e itens" });
   }
 };
 
 export const excluirPedido = async (req, res) => {
   try {
-    const { id } = req.params;
+    const { id } = req.body;
+    const connection = await CreatePoolConnection();
+    const transaction = new sql.Transaction(connection);
 
-    await pool.query("DELETE FROM pedidos WHERE id = ?", [id]);
+    await transaction.begin();
 
-    res.json({ message: "Pedido excluído com sucesso" });
-  } catch (error) {
-    console.error("Erro ao excluir o pedido:", error);
-    res.status(500).json({ error: "Erro ao excluir o pedido" });
-  }
-};
-
-export const criarPedido = async (req, res) => {
-  try {
-    const { dataHora, clienteId, status, total, itens } = req.body;
-
-    if (
-      !dataHora ||
-      !clienteId ||
-      !status ||
-      !total ||
-      !itens ||
-      !itens.length
-    ) {
-      return res.status(400).json({
-        error:
-          "Todos os campos são obrigatórios, e pelo menos um item deve ser incluído",
-      });
-    }
-
-    const connection = await pool.getConnection();
-    await connection.beginTransaction();
-
-    await pool.query(
-      "INSERT INTO pedidos (dataHora, clienteId, status, total) VALUES (?, ?, ?, ?)",
-      [dataHora, clienteId, status, total]
+    // Deletar os itens associados ao pedido
+    const deleteItensRequest = new sql.Request(transaction);
+    deleteItensRequest.input("id", sql.Int, id);
+    await deleteItensRequest.query(
+      "DELETE FROM itens_pedido WHERE pedidoId = @id"
     );
 
-    const [result] = await connection.query(
-      "SELECT LAST_INSERT_ID() as pedidoId"
-    );
-    const pedidoId = result[0].pedidoId;
+    // Deletar o pedido
+    const deletePedidoRequest = new sql.Request(transaction);
+    deletePedidoRequest.input("id", sql.Int, id);
+    await deletePedidoRequest.query("DELETE FROM pedidos WHERE id = @id");
 
-    for (const item of itens) {
-      const { produto, quantidade, precoUnitario } = item;
-      await connection.query(
-        "INSERT INTO itens_pedido (pedidoId, produto, quantidade, precoUnitario) VALUES (?, ?, ?, ?)",
-        [pedidoId, produto, quantidade, precoUnitario]
-      );
-    }
+    await transaction.commit();
 
-    await connection.commit();
-    connection.release();
-
-    res.json({ message: "Pedido criado com sucesso" });
+    res.json({ message: "Pedido e itens excluídos com sucesso" });
   } catch (error) {
-    console.error("Erro ao criar o pedido:", error);
-    res.status(500).json({ error: "Erro ao criar o pedido" });
+    console.error("Erro ao excluir o pedido e itens:", error);
+    res.status(500).json({ error: "Erro ao excluir o pedido e itens" });
   }
 };

@@ -1,17 +1,11 @@
 export default class PedidoModel {
   #id;
-  #dataHora;
-  #cliente;
-  #status;
-  #total;
+  #clienteId;
   #itens;
 
-  constructor(id, dataHora, cliente, status, total) {
+  constructor(id, clienteId) {
     this.#id = id;
-    this.#dataHora = dataHora;
-    this.#cliente = cliente;
-    this.#status = status;
-    this.#total = total;
+    this.#clienteId = clienteId;
     this.#itens = [];
   }
 
@@ -25,53 +19,18 @@ export default class PedidoModel {
     }
   }
 
-  get dataHora() {
-    return this.#dataHora;
+  get clienteId() {
+    return this.#clienteId;
   }
 
-  set dataHora(novaDataHora) {
-    this.#dataHora = novaDataHora;
-  }
-
-  get cliente() {
-    return this.#cliente;
-  }
-
-  set cliente(novoCliente) {
-    this.#cliente = novoCliente;
-  }
-
-  get status() {
-    return this.#status;
-  }
-
-  set status(novoStatus) {
-    this.#status = novoStatus;
-  }
-
-  get total() {
-    return this.#total;
-  }
-
-  set total(novoTotal) {
-    this.#total = novoTotal;
-  }
-
-  adicionarItem(item) {
-    this.#itens.push(item);
-  }
-
-  calcularTotal() {
-    this.#total = this.#itens.reduce((total, item) => total + item.total, 0);
+  set clienteId(novoClienteId) {
+    this.#clienteId = novoClienteId;
   }
 
   toJSON() {
     return {
       id: this.#id,
-      dataHora: this.#dataHora,
-      cliente: this.#cliente.toJSON(),
-      status: this.#status,
-      total: this.#total,
+      clienteId: this.#clienteId,
       itens: this.#itens.map((item) => item.toJSON()),
     };
   }

@@ -2,14 +2,19 @@
   "name": "backend",
   "version": "1.0.0",
   "description": "Atividade Exame",
-  "main": "index.js",
+  "main": "src/index.js",
   "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "nodemon  src/index.js",
+    "debug": "nodemon --inspect=0.0.0.0:9229 src/index.js"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "mssql": "^10.0.1",
     "mysql2": "^3.6.3",
     "nodemon": "^3.0.1"
   }

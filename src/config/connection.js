@@ -1,8 +1,32 @@
-import { createConnection } from "mysql2";
+import sql from "mssql";
 
-export default connection = createConnection({
-  host: "localhost", // Endereço do servidor MySQL
-  user: "seu_usuario", // Nome de usuário do MySQL
-  password: "sua_senha", // Senha do MySQL
-  database: "seu_banco_de_dados", // Nome do banco de dados
-});
+let poolConnection;
+
+export default async function CreatePoolConnection() {
+  if (global.poolConnections) {
+    return await global.poolConnections.connect();
+  }
+
+  try {
+    poolConnection = await sql.connect({
+      user: "local",
+      password: "local",
+      server: "127.0.0.1",
+      database: "backend",
+      port: 1433,
+      options: {
+        encrypt: false,
+        trustServerCertificate: true,
+      },
+    });
+
+    global.poolConnections = poolConnection;
+
+    console.log("Conexão bem-sucedida ao SQL Server!");
+
+    return poolConnection;
+  } catch (error) {
+    console.error("Erro ao conectar ao SQL Server:", error);
+    throw new Error("Erro ao conectar ao SQL Server");
+  }
+}

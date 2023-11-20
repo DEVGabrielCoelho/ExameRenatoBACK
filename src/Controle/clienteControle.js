@@ -1,4 +1,7 @@
-export const criarCliente = async (req, res) => {
+import CreatePoolConnection from "../config/connection.js";
+import sql from "mssql";
+
+export const cadastrarCliente = async (req, res) => {
   try {
     const { nome, endereco, telefone, email } = req.body;
 
@@ -8,59 +11,50 @@ export const criarCliente = async (req, res) => {
         .json({ error: "Todos os campos são obrigatórios" });
     }
 
-    await pool.query(
-      "INSERT INTO clientes (nome, endereco, telefone, email) VALUES (?, ?, ?, ?)",
-      [nome, endereco, telefone, email]
-    );
+    const connection = await CreatePoolConnection();
 
-    res.json({ message: "Cliente criado com sucesso" });
-  } catch (error) {
-    console.error("Erro ao criar o cliente:", error);
-    res.status(500).json({ error: "Erro ao criar o cliente" });
-  }
-};
+    const query =
+      "INSERT INTO dbo.clientes (nome, endereco, telefone, email) OUTPUT INSERTED.id VALUES (@nome, @endereco, @telefone, @email)";
 
-export const atualizarCliente = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { nome, endereco, telefone, email } = req.body;
+    const request = connection.request();
+    request.input("nome", sql.VarChar, nome);
+    request.input("endereco", sql.VarChar, endereco);
+    request.input("telefone", sql.VarChar, telefone);
+    request.input("email", sql.VarChar, email);
 
-    if (!nome || !endereco || !telefone || !email) {
+    const result = await request.query(query);
+
+    if (result && result.recordset && result.recordset.length > 0) {
+      const insertedId = result.recordset[0].id;
+      connection.release();
       return res
-        .status(400)
-        .json({ error: "Todos os campos são obrigatórios" });
+        .status(200)
+        .json({ message: "Cliente cadastrado com sucesso", insertedId });
+    } else {
+      connection.release();
+      return res.status(500).json({ error: "Erro ao cadastrar cliente" });
     }
-
-    await pool.query(
-      "UPDATE clientes SET nome = ?, endereco = ?, telefone = ?, email = ? WHERE id = ?",
-      [nome, endereco, telefone, email, id]
-    );
-
-    res.json({ message: "Cliente atualizado com sucesso" });
   } catch (error) {
-    console.error("Erro ao atualizar o cliente:", error);
-    res.status(500).json({ error: "Erro ao atualizar o cliente" });
-  }
-};
-
-export const excluirCliente = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    await pool.query("DELETE FROM clientes WHERE id = ?", [id]);
-
-    res.json({ message: "Cliente excluído com sucesso" });
-  } catch (error) {
-    console.error("Erro ao excluir o cliente:", error);
-    res.status(500).json({ error: "Erro ao excluir o cliente" });
+    console.error("Erro ao cadastrar cliente:", error);
+    res.status(500).json({ error: "Erro ao cadastrar cliente" });
   }
 };
 
 export const listarClientes = async (req, res) => {
   try {
-    const [results] = await pool.query("SELECT * FROM clientes");
+    const connection = await CreatePoolConnection();
 
-    res.json(results);
+    const query = "SELECT * FROM dbo.clientes";
+    const request = connection.request();
+    const result = await request.query(query);
+
+    connection.release();
+
+    if (result && result.recordset) {
+      res.json(result.recordset);
+    } else {
+      res.status(404).json({ error: "Nenhum cliente encontrado" });
+    }
   } catch (error) {
     console.error("Erro ao listar clientes:", error);
     res.status(500).json({ error: "Erro ao listar clientes" });

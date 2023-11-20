@@ -1,4 +1,4 @@
-export default class ClienteEntity {
+export default class ClienteModel {
   #id;
   #nome;
   #endereco;
