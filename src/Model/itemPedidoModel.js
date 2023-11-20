@@ -53,7 +53,6 @@ export default class ItemDoPedidoModel {
       produto: this.#produto,
       quantidade: this.#quantidade,
       precoUnitario: this.#precoUnitario,
-      total: this.#quantidade * this.#precoUnitario,
     };
   }
 }

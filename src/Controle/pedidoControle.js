@@ -77,7 +77,7 @@ export const cadastrarPedido = async (req, res) => {
     await itensTransaction.begin();
 
     for (const item of itens) {
-      const itensPedidoRequest = new sql.Request(itensTransaction); // Crie uma nova solicitação para cada item
+      const itensPedidoRequest = new sql.Request(itensTransaction);
       const { produto, quantidade, precoUnitario } = item;
       itensPedidoRequest.input("pedidoId", sql.Int, pedidoId);
       itensPedidoRequest.input("produto", sql.VarChar, produto);
@@ -106,14 +106,12 @@ export const excluirPedido = async (req, res) => {
 
     await transaction.begin();
 
-    // Deletar os itens associados ao pedido
     const deleteItensRequest = new sql.Request(transaction);
     deleteItensRequest.input("id", sql.Int, id);
     await deleteItensRequest.query(
       "DELETE FROM itens_pedido WHERE pedidoId = @id"
     );
 
-    // Deletar o pedido
     const deletePedidoRequest = new sql.Request(transaction);
     deletePedidoRequest.input("id", sql.Int, id);
     await deletePedidoRequest.query("DELETE FROM pedidos WHERE id = @id");
